@@ -76,7 +76,10 @@ export function ClaimForm({
         phone,
         proof_doc_url: docUrl,
       });
-      if (error) return toast.error(error.message);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       toast.success("Claim submitted");
       router.refresh();
     });

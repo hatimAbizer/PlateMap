@@ -34,11 +34,18 @@ export function RegisterForm({ next }: { next?: string }) {
           data: { full_name: name },
         },
       });
-      if (error) return toast.error(error.message);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       if (data.user && pref !== "none") {
-        await supabase.from("profiles").update({ dietary_preference: pref, name }).eq("id", data.user.id);
+        await supabase.from("profiles").upsert({
+          id: data.user.id,
+          dietary_preference: pref,
+          name,
+        });
       } else if (data.user && name) {
-        await supabase.from("profiles").update({ name }).eq("id", data.user.id);
+        await supabase.from("profiles").upsert({ id: data.user.id, name });
       }
       toast.success("Account created");
       router.refresh();

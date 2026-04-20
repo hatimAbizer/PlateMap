@@ -30,7 +30,10 @@ export function OwnerEditor({ restaurant }: { restaurant: RestaurantRow }) {
           description: description || null,
         })
         .eq("id", restaurant.id);
-      if (error) return toast.error(error.message);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       toast.success("Saved. Changes go live and are flagged for admin review.");
       router.refresh();
     });

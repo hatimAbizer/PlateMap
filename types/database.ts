@@ -85,32 +85,42 @@ export interface Database {
         Row: RestaurantRow;
         Insert: Partial<RestaurantRow> & Pick<RestaurantRow, "name" | "slug" | "address" | "city" | "lat" | "lng">;
         Update: Partial<RestaurantRow>;
+        Relationships: [];
       };
       profiles: {
         Row: ProfileRow;
         Insert: Partial<ProfileRow> & Pick<ProfileRow, "id">;
         Update: Partial<ProfileRow>;
+        Relationships: [];
       };
       favourites: {
         Row: FavouriteRow;
         Insert: FavouriteRow;
         Update: Partial<FavouriteRow>;
+        Relationships: [];
       };
       reviews: {
         Row: ReviewRow;
         Insert: Partial<ReviewRow> & Pick<ReviewRow, "restaurant_id" | "user_id" | "rating" | "text">;
         Update: Partial<ReviewRow>;
+        Relationships: [];
       };
       claims: {
         Row: ClaimRow;
         Insert: Partial<ClaimRow> & Pick<ClaimRow, "restaurant_id" | "claimant_user_id" | "claimant_name" | "designation" | "business_email" | "phone">;
         Update: Partial<ClaimRow>;
+        Relationships: [];
       };
       admins: {
         Row: AdminRow;
         Insert: AdminRow;
         Update: Partial<AdminRow>;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+    Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 }

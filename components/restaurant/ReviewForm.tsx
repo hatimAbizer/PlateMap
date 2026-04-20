@@ -42,7 +42,10 @@ export function ReviewForm({
           .from("reviews")
           .update({ rating, text, photos })
           .eq("id", existing.id);
-        if (error) return toast.error(error.message);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
         toast.success("Review updated");
       } else {
         const { error } = await supabase.from("reviews").insert({
@@ -52,7 +55,10 @@ export function ReviewForm({
           text,
           photos,
         });
-        if (error) return toast.error(error.message);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
         toast.success("Review posted");
       }
       router.refresh();
@@ -64,7 +70,10 @@ export function ReviewForm({
     startTransition(async () => {
       const supabase = createClientSupabase();
       const { error } = await supabase.from("reviews").delete().eq("id", existing.id);
-      if (error) return toast.error(error.message);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       toast.success("Review removed");
       setRating(0);
       setText("");
