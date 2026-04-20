@@ -1,0 +1,238 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: 0 0% 0%;
+    --surface: 0 0% 6%;
+    --surface-2: 0 0% 9%;
+    --border: 0 0% 12%;
+    --text: 0 0% 100%;
+    --muted: 220 9% 46%;
+
+    --halal: 16 25% 31%;
+    --veg: 123 46% 34%;
+    --vegan: 285 75% 38%;
+    --jain: 0 0% 62%;
+
+    --radius: 0.375rem;
+
+    --background: var(--bg);
+    --foreground: var(--text);
+    --card: var(--surface);
+    --card-foreground: var(--text);
+    --popover: var(--surface);
+    --popover-foreground: var(--text);
+    --primary: var(--text);
+    --primary-foreground: var(--bg);
+    --secondary: var(--surface-2);
+    --secondary-foreground: var(--text);
+    --muted-foreground: var(--muted);
+    --accent: var(--surface-2);
+    --accent-foreground: var(--text);
+    --destructive: 0 62% 50%;
+    --destructive-foreground: var(--text);
+    --input: var(--border);
+    --ring: 0 0% 40%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    color-scheme: dark;
+    background-color: hsl(var(--bg));
+    color: hsl(var(--text));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  body {
+    background-color: hsl(var(--bg));
+    color: hsl(var(--text));
+    font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+    font-weight: 500;
+    letter-spacing: -0.003em;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+  }
+
+  button, input, textarea, select {
+    font-family: inherit;
+  }
+
+  ::selection {
+    background: hsl(var(--text) / 0.15);
+    color: hsl(var(--text));
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--bg));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 0;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted));
+  }
+}
+
+@layer components {
+  .hairline {
+    position: relative;
+  }
+  .hairline::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+    background: hsl(var(--border));
+  }
+
+  .label-xs {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: hsl(var(--muted));
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "ss01" 1;
+  }
+
+  .marker-svg {
+    width: 22px;
+    height: 22px;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+  }
+}
+
+/* Leaflet dark overrides */
+.leaflet-container {
+  background: #000 !important;
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  outline: none;
+}
+
+.leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.7) !important;
+  color: hsl(var(--muted)) !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-bottom: none !important;
+  border-right: none !important;
+  backdrop-filter: none !important;
+}
+.leaflet-control-attribution a {
+  color: hsl(var(--text)) !important;
+}
+
+.leaflet-control-zoom {
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: none !important;
+  margin: 16px !important;
+}
+.leaflet-control-zoom a {
+  background: hsl(var(--surface)) !important;
+  color: hsl(var(--text)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 30px !important;
+  font-size: 18px !important;
+  font-weight: 400 !important;
+}
+.leaflet-control-zoom a:hover {
+  background: hsl(var(--surface-2)) !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background: hsl(var(--surface)) !important;
+  color: hsl(var(--text)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+  padding: 0 !important;
+}
+.leaflet-popup-content {
+  margin: 0 !important;
+  min-width: 240px !important;
+}
+.leaflet-popup-tip {
+  background: hsl(var(--surface)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: none !important;
+}
+.leaflet-popup-close-button {
+  color: hsl(var(--muted)) !important;
+  padding: 10px 10px 0 0 !important;
+  font-size: 18px !important;
+}
+.leaflet-popup-close-button:hover {
+  color: hsl(var(--text)) !important;
+}
+
+/* Marker cluster custom style */
+.marker-cluster-custom {
+  background: hsl(var(--surface));
+  border: 1px solid hsl(var(--text));
+  color: hsl(var(--text));
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  border-radius: 9999px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+}
+.marker-cluster-custom-sm { width: 32px !important; height: 32px !important; }
+.marker-cluster-custom-md { width: 40px !important; height: 40px !important; font-size: 13px; }
+.marker-cluster-custom-lg { width: 48px !important; height: 48px !important; font-size: 14px; }
+
+/* PlateMap markers */
+.pm-marker-wrap {
+  background: transparent !important;
+  border: none !important;
+}
+.pm-marker {
+  transform-origin: 50% 100%;
+  transition: transform 160ms cubic-bezier(0.2, 0.9, 0.25, 1.2);
+}
+.pm-marker:hover {
+  transform: scale(1.15) translateY(-2px);
+  z-index: 1000;
+}
+.pm-marker-active {
+  transform: scale(1.25) translateY(-3px);
+}
+
+/* Page transitions */
+.map-fade-in {
+  animation: fade-in 360ms ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

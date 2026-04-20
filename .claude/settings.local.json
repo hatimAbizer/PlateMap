@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm -rf /c/PlateMap/node_modules /c/PlateMap/package-lock.json)",
+      "Bash(mkdir -p /c/PlateMap/app /c/PlateMap/components/map /c/PlateMap/components/restaurant /c/PlateMap/components/layout /c/PlateMap/components/ui /c/PlateMap/lib/supabase /c/PlateMap/lib/tomtom /c/PlateMap/hooks /c/PlateMap/types /c/PlateMap/public/markers /c/PlateMap/supabase/migrations /c/PlateMap/scripts)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npx next *)"
+    ]
+  }
+}
