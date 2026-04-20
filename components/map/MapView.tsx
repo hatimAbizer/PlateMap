@@ -41,7 +41,7 @@ export default function MapView({ restaurants }: MapViewProps) {
     () =>
       restaurants.filter((r) =>
         r.dietary_categories.length === 0
-          ? false
+          ? true
           : r.dietary_categories.some((c) => active[c])
       ),
     [restaurants, active]
