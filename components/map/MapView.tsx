@@ -29,6 +29,22 @@ interface MapViewProps {
   restaurants: RestaurantRow[];
 }
 
+interface TomTomMapPoi {
+  id: string;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  categories: string[];
+  website: string | null;
+}
+
+interface FocusedMarker {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 export default function MapView({ restaurants }: MapViewProps) {
   const [active, setActive] = useState<Record<DietaryKey, boolean>>({
     halal: true,
@@ -47,7 +63,43 @@ export default function MapView({ restaurants }: MapViewProps) {
     [restaurants, active]
   );
 
-  const [focused, setFocused] = useState<RestaurantRow | null>(null);
+  const [tomtomPois, setTomtomPois] = useState<TomTomMapPoi[]>([]);
+  const [focused, setFocused] = useState<FocusedMarker | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/tomtom/search?q=restaurant&limit=100&radius=50000");
+        if (!res.ok) return;
+        const json = await res.json();
+        const dbNames = new Set(restaurants.map((r) => r.name.trim().toLowerCase()));
+        const rows = Array.isArray(json.results) ? json.results : [];
+        const mapped: TomTomMapPoi[] = rows
+          .map((r: any): TomTomMapPoi => ({
+            id: String(r.id ?? crypto.randomUUID()),
+            name: String(r.name ?? "").trim(),
+            address: String(r.address ?? "").trim(),
+            lat: Number(r.lat),
+            lng: Number(r.lng),
+            categories: Array.isArray(r.categories)
+              ? r.categories.map((c: unknown) => String(c))
+              : [],
+            website: typeof r.website === "string" ? r.website : null,
+          }))
+          .filter((r: TomTomMapPoi) => r.name.length > 0 && Number.isFinite(r.lat) && Number.isFinite(r.lng))
+          .filter((r: TomTomMapPoi) => !dbNames.has(r.name.toLowerCase()));
+        if (mounted) setTomtomPois(mapped);
+      } catch {
+        if (mounted) setTomtomPois([]);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [restaurants]);
+
+  const totalShown = filtered.length + tomtomPois.length;
 
   return (
     <div className="relative h-[calc(100dvh-56px)] w-full overflow-hidden bg-black map-fade-in">
@@ -89,11 +141,25 @@ export default function MapView({ restaurants }: MapViewProps) {
                 verified: r.is_verified,
               })}
               eventHandlers={{
-                click: () => setFocused(r),
+                click: () => setFocused({ name: r.name, lat: r.lat, lng: r.lng }),
               }}
             >
               <Popup closeButton autoPan>
                 <MarkerPopup restaurant={r} />
+              </Popup>
+            </Marker>
+          ))}
+          {tomtomPois.map((r) => (
+            <Marker
+              key={`tt-${r.id}`}
+              position={[r.lat, r.lng]}
+              icon={makeRestaurantIcon([], { verified: false })}
+              eventHandlers={{
+                click: () => setFocused({ name: r.name, lat: r.lat, lng: r.lng }),
+              }}
+            >
+              <Popup closeButton autoPan>
+                <TomTomPopup poi={r} />
               </Popup>
             </Marker>
           ))}
@@ -105,7 +171,10 @@ export default function MapView({ restaurants }: MapViewProps) {
       {/* Overlay UI */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-4 top-4 sm:left-6 sm:top-6 z-[500]">
-          <MapSearch restaurants={restaurants} onFly={setFocused} />
+          <MapSearch
+            restaurants={restaurants}
+            onFly={(r) => setFocused(r ? { name: r.name, lat: r.lat, lng: r.lng } : null)}
+          />
         </div>
 
         <div className="absolute right-4 top-4 sm:right-6 sm:top-6 z-[500]">
@@ -120,7 +189,7 @@ export default function MapView({ restaurants }: MapViewProps) {
           <LocateControl />
         </div>
 
-        <StatsStrip count={filtered.length} total={restaurants.length} focused={focused} />
+        <StatsStrip count={totalShown} total={restaurants.length + tomtomPois.length} focused={focused} />
       </div>
     </div>
   );
@@ -184,6 +253,34 @@ function MarkerPopup({ restaurant: r }: { restaurant: RestaurantRow }) {
         View details
         <ArrowRight className="h-3 w-3" />
       </Link>
+    </div>
+  );
+}
+
+function TomTomPopup({ poi }: { poi: TomTomMapPoi }) {
+  return (
+    <div className="min-w-[240px] p-4 font-[var(--font-body)]">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-muted">TomTom</div>
+      <h3 className="font-display text-base font-semibold text-text leading-tight mt-0.5">
+        {poi.name}
+      </h3>
+      <div className="mt-2 text-xs text-muted">{poi.address}</div>
+      {poi.categories.length > 0 && (
+        <div className="mt-2 text-[10px] uppercase tracking-[0.14em] text-muted">
+          {poi.categories.slice(0, 2).join(" · ")}
+        </div>
+      )}
+      {poi.website && (
+        <a
+          href={poi.website.startsWith("http") ? poi.website : `https://${poi.website}`}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-text hover:text-muted transition-colors"
+        >
+          Open website
+          <ArrowRight className="h-3 w-3" />
+        </a>
+      )}
     </div>
   );
 }
@@ -255,7 +352,7 @@ function StatsStrip({
 }: {
   count: number;
   total: number;
-  focused: RestaurantRow | null;
+  focused: FocusedMarker | null;
 }) {
   return (
     <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-4 sm:bottom-6 z-[500]">
