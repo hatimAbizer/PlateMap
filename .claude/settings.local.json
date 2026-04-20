@@ -5,7 +5,8 @@
       "Bash(mkdir -p /c/PlateMap/app /c/PlateMap/components/map /c/PlateMap/components/restaurant /c/PlateMap/components/layout /c/PlateMap/components/ui /c/PlateMap/lib/supabase /c/PlateMap/lib/tomtom /c/PlateMap/hooks /c/PlateMap/types /c/PlateMap/public/markers /c/PlateMap/supabase/migrations /c/PlateMap/scripts)",
       "Bash(npm install *)",
       "Bash(npx tsc *)",
-      "Bash(npx next *)"
+      "Bash(npx next *)",
+      "Bash(echo \"exit=$?\")"
     ]
   }
 }

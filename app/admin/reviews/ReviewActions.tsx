@@ -14,7 +14,10 @@ export function ReviewActions({ reviewId }: { reviewId: string }) {
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, okMsg: string) =>
     start(async () => {
       const r = await fn();
-      if (!r.ok) return toast.error(r.error ?? "Failed");
+      if (!r.ok) {
+        toast.error(r.error ?? "Failed");
+        return;
+      }
       toast.success(okMsg);
       router.refresh();
     });

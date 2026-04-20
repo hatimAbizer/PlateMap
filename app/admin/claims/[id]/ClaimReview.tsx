@@ -26,7 +26,10 @@ export function ClaimReview({
   const approve = () =>
     start(async () => {
       const r = await approveClaim(claimId);
-      if (!r.ok) return toast.error(r.error ?? "Failed");
+      if (!r.ok) {
+        toast.error(r.error ?? "Failed");
+        return;
+      }
       toast.success("Claim approved. Owner can now manage the listing.");
       router.refresh();
     });
@@ -34,7 +37,10 @@ export function ClaimReview({
   const reject = () =>
     start(async () => {
       const r = await rejectClaim(claimId, reason.trim());
-      if (!r.ok) return toast.error(r.error ?? "Failed");
+      if (!r.ok) {
+        toast.error(r.error ?? "Failed");
+        return;
+      }
       toast.success("Claim rejected.");
       router.refresh();
     });
@@ -44,7 +50,10 @@ export function ClaimReview({
     setSigning(true);
     const r = await signProofUrl(proofPath);
     setSigning(false);
-    if (!r.ok) return toast.error(r.error);
+    if (!r.ok) {
+      toast.error(r.error);
+      return;
+    }
     window.open(r.url, "_blank", "noopener,noreferrer");
   };
 

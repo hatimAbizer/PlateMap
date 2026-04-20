@@ -44,7 +44,10 @@ export function DietaryEditor({ restaurant }: { restaurant: RestaurantRow }) {
   const save = () =>
     start(async () => {
       const r = await updateDietary(restaurant.id, categories, statuses, isVerified);
-      if (!r.ok) return toast.error(r.error ?? "Failed");
+      if (!r.ok) {
+        toast.error(r.error ?? "Failed");
+        return;
+      }
       toast.success("Listing updated.");
       router.refresh();
     });
