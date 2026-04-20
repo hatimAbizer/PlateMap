@@ -94,11 +94,11 @@ create table if not exists public.restaurants (
 create index if not exists restaurants_city_idx on public.restaurants(city);
 create index if not exists restaurants_cats_idx on public.restaurants using gin(dietary_categories);
 create index if not exists restaurants_lat_lng_idx on public.restaurants(lat, lng);
-create index if not exists restaurants_name_trgm_idx on public.restaurants using gin (name gin_trgm_ops);
 -- Enable pg_trgm (optional — wrapped in DO so fresh projects don't fail)
 do $$ begin
   create extension if not exists pg_trgm;
 exception when others then null; end $$;
+create index if not exists restaurants_name_trgm_idx on public.restaurants using gin (name gin_trgm_ops);
 
 -- ============================================================
 -- favourites
