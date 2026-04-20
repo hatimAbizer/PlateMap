@@ -25,6 +25,7 @@ export interface RestaurantRow {
   photos: string[];
   avg_rating: number | null;
   review_count: number;
+  overture_id: string | null;
   tomtom_id: string | null;
   created_at: string;
   updated_at: string;

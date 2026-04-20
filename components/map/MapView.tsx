@@ -13,7 +13,7 @@ import { ArrowRight, Crosshair, Star } from "lucide-react";
 
 import type { RestaurantRow } from "@/types/database";
 import type { DietaryKey } from "@/lib/dietary";
-import { getDietaryStatus, inferDietaryCategoriesFromMetadata } from "@/lib/dietary";
+import { getDietaryStatus } from "@/lib/dietary";
 import { FilterPanel } from "./FilterPanel";
 import { Legend } from "./Legend";
 import { MapSearch } from "./MapSearch";
@@ -27,17 +27,6 @@ const BLR_ZOOM = 12;
 
 interface MapViewProps {
   restaurants: RestaurantRow[];
-}
-
-interface TomTomMapPoi {
-  id: string;
-  name: string;
-  address: string;
-  lat: number;
-  lng: number;
-  categories: string[];
-  dietaryCategories: DietaryKey[];
-  website: string | null;
 }
 
 interface FocusedMarker {
@@ -58,65 +47,15 @@ export default function MapView({ restaurants }: MapViewProps) {
     () =>
       restaurants.filter((r) =>
         r.dietary_categories.length === 0
-          ? true
+          ? false
           : r.dietary_categories.some((c) => active[c])
       ),
     [restaurants, active]
   );
 
-  const [tomtomPois, setTomtomPois] = useState<TomTomMapPoi[]>([]);
   const [focused, setFocused] = useState<FocusedMarker | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/tomtom/search?q=restaurant&limit=100&radius=50000");
-        if (!res.ok) return;
-        const json = await res.json();
-        const dbNames = new Set(restaurants.map((r) => r.name.trim().toLowerCase()));
-        const rows = Array.isArray(json.results) ? json.results : [];
-        const mapped: TomTomMapPoi[] = rows
-          .map((r: any): TomTomMapPoi => ({
-            id: String(r.id ?? crypto.randomUUID()),
-            name: String(r.name ?? "").trim(),
-            address: String(r.address ?? "").trim(),
-            lat: Number(r.lat),
-            lng: Number(r.lng),
-            categories: Array.isArray(r.categories)
-              ? r.categories.map((c: unknown) => String(c))
-              : [],
-            dietaryCategories: inferDietaryCategoriesFromMetadata(
-              String(r.name ?? ""),
-              String(r.address ?? ""),
-              Array.isArray(r.categories) ? r.categories.join(" ") : "",
-              typeof r.website === "string" ? r.website : ""
-            ),
-            website: typeof r.website === "string" ? r.website : null,
-          }))
-          .filter((r: TomTomMapPoi) => r.name.length > 0 && Number.isFinite(r.lat) && Number.isFinite(r.lng))
-          .filter((r: TomTomMapPoi) => !dbNames.has(r.name.toLowerCase()));
-        if (mounted) setTomtomPois(mapped);
-      } catch {
-        if (mounted) setTomtomPois([]);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [restaurants]);
-
-  const filteredTomtom = useMemo(
-    () =>
-      tomtomPois.filter((r) =>
-        r.dietaryCategories.length === 0
-          ? true
-          : r.dietaryCategories.some((c) => active[c])
-      ),
-    [tomtomPois, active]
-  );
-
-  const totalShown = filtered.length + filteredTomtom.length;
+  const totalShown = filtered.length;
 
   return (
     <div className="relative h-[calc(100dvh-56px)] w-full overflow-hidden bg-black map-fade-in">
@@ -166,35 +105,21 @@ export default function MapView({ restaurants }: MapViewProps) {
               </Popup>
             </Marker>
           ))}
-          {filteredTomtom.map((r) => (
-            <Marker
-              key={`tt-${r.id}`}
-              position={[r.lat, r.lng]}
-              icon={makeRestaurantIcon(r.dietaryCategories, { verified: false })}
-              eventHandlers={{
-                click: () => setFocused({ name: r.name, lat: r.lat, lng: r.lng }),
-              }}
-            >
-              <Popup closeButton autoPan>
-                <TomTomPopup poi={r} />
-              </Popup>
-            </Marker>
-          ))}
         </MarkerClusterGroup>
 
         <Recenter />
       </MapContainer>
 
-      {/* Overlay UI */}
+      {/* Overlay UI — offset by navbar height (56px) + breathing room */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-4 top-4 sm:left-6 sm:top-6 z-[500]">
+        <div className="absolute left-4 top-[72px] sm:left-6 sm:top-[80px] z-[500]">
           <MapSearch
             restaurants={restaurants}
             onFly={(r) => setFocused(r ? { name: r.name, lat: r.lat, lng: r.lng } : null)}
           />
         </div>
 
-        <div className="absolute right-4 top-4 sm:right-6 sm:top-6 z-[500]">
+        <div className="absolute right-4 top-[72px] sm:right-6 sm:top-[80px] z-[500]">
           <FilterPanel active={active} onChange={setActive} counts={countsByCat(restaurants)} />
         </div>
 
@@ -206,7 +131,7 @@ export default function MapView({ restaurants }: MapViewProps) {
           <LocateControl />
         </div>
 
-        <StatsStrip count={totalShown} total={restaurants.length + tomtomPois.length} focused={focused} />
+        <StatsStrip count={totalShown} total={restaurants.length} focused={focused} />
       </div>
     </div>
   );
@@ -268,41 +193,6 @@ function MarkerPopup({ restaurant: r }: { restaurant: RestaurantRow }) {
         View details
         <ArrowRight className="h-3 w-3" />
       </Link>
-    </div>
-  );
-}
-
-function TomTomPopup({ poi }: { poi: TomTomMapPoi }) {
-  return (
-    <div className="min-w-[240px] p-4 font-[var(--font-body)]">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-muted">TomTom</div>
-      <h3 className="font-display text-base font-semibold text-text leading-tight mt-0.5">
-        {poi.name}
-      </h3>
-      <div className="mt-2 text-xs text-muted">{poi.address}</div>
-      {poi.dietaryCategories.length > 0 && (
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
-          {poi.dietaryCategories.map((c) => (
-            <DietaryBadge key={c} category={c} size="sm" status="unverified" />
-          ))}
-        </div>
-      )}
-      {poi.categories.length > 0 && (
-        <div className="mt-2 text-[10px] uppercase tracking-[0.14em] text-muted">
-          {poi.categories.slice(0, 2).join(" · ")}
-        </div>
-      )}
-      {poi.website && (
-        <a
-          href={poi.website.startsWith("http") ? poi.website : `https://${poi.website}`}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-text hover:text-muted transition-colors"
-        >
-          Open website
-          <ArrowRight className="h-3 w-3" />
-        </a>
-      )}
     </div>
   );
 }

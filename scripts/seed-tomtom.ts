@@ -6,11 +6,14 @@
  * public.restaurants with inferred dietary_categories[] from metadata and marks
  * all inferred tags as unverified. Duplicates (by tomtom_id) are skipped.
  */
-import "dotenv/config";
+import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { tomtomCategorySearch, type TomTomPoi } from "../lib/tomtom/client";
 import { buildDietaryClaimStatus, inferDietaryCategoriesFromMetadata } from "../lib/dietary";
 import { slugify } from "../lib/utils";
+
+config({ path: ".env.local" });
+config();
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;

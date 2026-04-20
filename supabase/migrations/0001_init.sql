@@ -87,6 +87,7 @@ create table if not exists public.restaurants (
   photos text[] default '{}' not null,
   avg_rating numeric(3,2),
   review_count integer default 0 not null,
+  overture_id text unique,
   tomtom_id text unique,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
