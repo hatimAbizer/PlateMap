@@ -1,4 +1,5 @@
 export type DietaryCategory = "halal" | "veg" | "vegan" | "jain";
+export type DietaryVerificationStatus = "unverified" | "verified";
 
 export type PriceRange = "$" | "$$" | "$$$" | "$$$$";
 
@@ -17,6 +18,7 @@ export interface RestaurantRow {
   cuisine_type: string | null;
   price_range: PriceRange | null;
   dietary_categories: DietaryCategory[];
+  dietary_claim_status: Partial<Record<DietaryCategory, DietaryVerificationStatus>>;
   is_verified: boolean;
   claimed_by: string | null;
   hours: Record<string, { open: string; close: string } | null> | null;

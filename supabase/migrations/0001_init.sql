@@ -80,6 +80,7 @@ create table if not exists public.restaurants (
   cuisine_type text,
   price_range text check (price_range in ('$', '$$', '$$$', '$$$$')),
   dietary_categories dietary_category[] default '{}' not null,
+  dietary_claim_status jsonb default '{}'::jsonb not null,
   is_verified boolean default false not null,
   claimed_by uuid references auth.users(id) on delete set null,
   hours jsonb,

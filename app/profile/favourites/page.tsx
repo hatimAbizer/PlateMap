@@ -6,6 +6,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { DietaryBadge } from "@/components/restaurant/DietaryBadge";
 import type { RestaurantRow } from "@/types/database";
 import { formatRating } from "@/lib/utils";
+import { getDietaryStatus } from "@/lib/dietary";
 
 export const metadata = { title: "Favourites" };
 
@@ -67,7 +68,7 @@ export default async function FavouritesPage() {
                       key={c}
                       category={c}
                       size="sm"
-                      verified={r.is_verified}
+                      status={getDietaryStatus(c, r.dietary_claim_status, r.is_verified)}
                     />
                   ))}
                 </div>

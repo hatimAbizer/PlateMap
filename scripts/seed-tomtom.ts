@@ -3,12 +3,13 @@
  * Run:  npm run seed
  *
  * Pulls restaurants around a list of Bengaluru anchor points, inserts them into
- * public.restaurants with an empty dietary_categories[] — so admin can classify
- * them before publishing. Duplicates (by tomtom_id) are skipped.
+ * public.restaurants with inferred dietary_categories[] from metadata and marks
+ * all inferred tags as unverified. Duplicates (by tomtom_id) are skipped.
  */
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
 import { tomtomCategorySearch, type TomTomPoi } from "../lib/tomtom/client";
+import { buildDietaryClaimStatus, inferDietaryCategoriesFromMetadata } from "../lib/dietary";
 import { slugify } from "../lib/utils";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -71,6 +72,12 @@ async function main() {
   for (const p of all) {
     const base = slugify(p.name) || "restaurant";
     const slug = `${base}-${p.id.slice(-6)}`.slice(0, 120);
+    const dietary = inferDietaryCategoriesFromMetadata(
+      p.name,
+      p.address,
+      p.categories.join(" "),
+      p.website ?? ""
+    );
 
     const { error } = await supabase.from("restaurants").insert({
       slug,
@@ -83,7 +90,8 @@ async function main() {
       phone: p.phone,
       website: p.website,
       cuisine_type: p.categories.filter((c) => c !== "restaurant")[0] ?? null,
-      dietary_categories: [],
+      dietary_categories: dietary,
+      dietary_claim_status: buildDietaryClaimStatus(dietary, "unverified"),
       is_verified: false,
       photos: [],
       tomtom_id: p.id,

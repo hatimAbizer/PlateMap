@@ -4,8 +4,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 
-import L from "leaflet";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, useMap } from "react-leaflet";
 import MarkerClusterGroup from "react-leaflet-cluster";
 import { Marker, Popup } from "react-leaflet";
@@ -14,13 +13,14 @@ import { ArrowRight, Crosshair, Star } from "lucide-react";
 
 import type { RestaurantRow } from "@/types/database";
 import type { DietaryKey } from "@/lib/dietary";
-import { DIETARY, dietaryBadgeLabel, primaryDietary } from "@/lib/dietary";
+import { getDietaryStatus, inferDietaryCategoriesFromMetadata } from "@/lib/dietary";
 import { FilterPanel } from "./FilterPanel";
 import { Legend } from "./Legend";
 import { MapSearch } from "./MapSearch";
 import { formatCoord, formatRating } from "@/lib/utils";
 import { makeClusterIcon, makeRestaurantIcon } from "./marker-icons";
 import { cn } from "@/lib/utils";
+import { DietaryBadge } from "@/components/restaurant/DietaryBadge";
 
 const BLR_CENTER: [number, number] = [12.9716, 77.5946];
 const BLR_ZOOM = 12;
@@ -36,6 +36,7 @@ interface TomTomMapPoi {
   lat: number;
   lng: number;
   categories: string[];
+  dietaryCategories: DietaryKey[];
   website: string | null;
 }
 
@@ -85,6 +86,12 @@ export default function MapView({ restaurants }: MapViewProps) {
             categories: Array.isArray(r.categories)
               ? r.categories.map((c: unknown) => String(c))
               : [],
+            dietaryCategories: inferDietaryCategoriesFromMetadata(
+              String(r.name ?? ""),
+              String(r.address ?? ""),
+              Array.isArray(r.categories) ? r.categories.join(" ") : "",
+              typeof r.website === "string" ? r.website : ""
+            ),
             website: typeof r.website === "string" ? r.website : null,
           }))
           .filter((r: TomTomMapPoi) => r.name.length > 0 && Number.isFinite(r.lat) && Number.isFinite(r.lng))
@@ -99,7 +106,17 @@ export default function MapView({ restaurants }: MapViewProps) {
     };
   }, [restaurants]);
 
-  const totalShown = filtered.length + tomtomPois.length;
+  const filteredTomtom = useMemo(
+    () =>
+      tomtomPois.filter((r) =>
+        r.dietaryCategories.length === 0
+          ? true
+          : r.dietaryCategories.some((c) => active[c])
+      ),
+    [tomtomPois, active]
+  );
+
+  const totalShown = filtered.length + filteredTomtom.length;
 
   return (
     <div className="relative h-[calc(100dvh-56px)] w-full overflow-hidden bg-black map-fade-in">
@@ -149,11 +166,11 @@ export default function MapView({ restaurants }: MapViewProps) {
               </Popup>
             </Marker>
           ))}
-          {tomtomPois.map((r) => (
+          {filteredTomtom.map((r) => (
             <Marker
               key={`tt-${r.id}`}
               position={[r.lat, r.lng]}
-              icon={makeRestaurantIcon([], { verified: false })}
+              icon={makeRestaurantIcon(r.dietaryCategories, { verified: false })}
               eventHandlers={{
                 click: () => setFocused({ name: r.name, lat: r.lat, lng: r.lng }),
               }}
@@ -202,7 +219,6 @@ function countsByCat(rs: RestaurantRow[]): Record<DietaryKey, number> {
 }
 
 function MarkerPopup({ restaurant: r }: { restaurant: RestaurantRow }) {
-  const primary = primaryDietary(r.dietary_categories);
   return (
     <div className="min-w-[240px] p-4 font-[var(--font-body)]">
       <div className="flex items-start justify-between gap-2">
@@ -223,13 +239,12 @@ function MarkerPopup({ restaurant: r }: { restaurant: RestaurantRow }) {
 
       <div className="mt-2.5 flex flex-wrap gap-1.5">
         {r.dietary_categories.map((c) => (
-          <span
+          <DietaryBadge
             key={c}
-            className="text-[10px] uppercase tracking-[0.14em] font-semibold px-1.5 py-0.5 rounded-sm text-text"
-            style={{ backgroundColor: DIETARY[c].color, color: DIETARY[c].textOnColor }}
-          >
-            {dietaryBadgeLabel(c, r.is_verified)}
-          </span>
+            category={c}
+            size="sm"
+            status={getDietaryStatus(c, r.dietary_claim_status, r.is_verified)}
+          />
         ))}
       </div>
 
@@ -265,6 +280,13 @@ function TomTomPopup({ poi }: { poi: TomTomMapPoi }) {
         {poi.name}
       </h3>
       <div className="mt-2 text-xs text-muted">{poi.address}</div>
+      {poi.dietaryCategories.length > 0 && (
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {poi.dietaryCategories.map((c) => (
+            <DietaryBadge key={c} category={c} size="sm" status="unverified" />
+          ))}
+        </div>
+      )}
       {poi.categories.length > 0 && (
         <div className="mt-2 text-[10px] uppercase tracking-[0.14em] text-muted">
           {poi.categories.slice(0, 2).join(" · ")}

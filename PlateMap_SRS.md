@@ -187,7 +187,7 @@ Functional Requirements
 5.2 Core Data Entities
 
 Entity	Key Fields
-Restaurant	id, name, slug, address, city, lat, lng, phone, cuisine_type, price_range, dietary_categories[], is_verified, claimed_by, hours, photos[], avg_rating, review_count, created_at
+Restaurant	id, name, slug, address, city, lat, lng, phone, cuisine_type, price_range, dietary_categories[], dietary_claim_status(json map per tag: unverified|verified), is_verified, claimed_by, hours, photos[], avg_rating, review_count, created_at
 User	id, name, email, password_hash, dietary_preference, favourites[], created_at
 Review	id, restaurant_id, user_id, rating, text, photos[], created_at, is_flagged
 Claim	id, restaurant_id, claimant_user_id, business_email, phone, proof_doc_url, status (pending/approved/rejected), reviewed_by, created_at

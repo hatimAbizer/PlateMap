@@ -6,6 +6,8 @@ export const DIETARY = {
 } as const;
 
 export type DietaryKey = keyof typeof DIETARY;
+export type DietaryVerificationStatus = "unverified" | "verified";
+export type DietaryClaimStatusMap = Partial<Record<DietaryKey, DietaryVerificationStatus>>;
 export const DIETARY_KEYS = Object.keys(DIETARY) as DietaryKey[];
 
 export const DIETARY_ORDER: DietaryKey[] = ["halal", "veg", "vegan", "jain"];
@@ -16,15 +18,55 @@ export function primaryDietary(cats: DietaryKey[] | undefined): DietaryKey | nul
   return cats[0];
 }
 
-export function dietaryBadgeLabel(key: DietaryKey, verified?: boolean): string {
-  switch (key) {
-    case "halal":
-      return verified ? "Halal Certified" : "Halal";
-    case "veg":
-      return "Pure Veg";
-    case "vegan":
-      return "Vegan";
-    case "jain":
-      return "Jain Friendly";
+export function dietaryBadgeLabel(
+  key: DietaryKey,
+  status: DietaryVerificationStatus = "unverified"
+): string {
+  const base = DIETARY[key].label;
+  return `${base} ${status === "verified" ? "Verified" : "Unverified"}`;
+}
+
+export function getDietaryStatus(
+  key: DietaryKey,
+  claims?: DietaryClaimStatusMap | null,
+  fallbackVerified = false
+): DietaryVerificationStatus {
+  const status = claims?.[key];
+  if (status === "verified" || status === "unverified") return status;
+  return fallbackVerified ? "verified" : "unverified";
+}
+
+export function buildDietaryClaimStatus(
+  categories: DietaryKey[],
+  status: DietaryVerificationStatus
+): DietaryClaimStatusMap {
+  return Object.fromEntries(categories.map((c) => [c, status])) as DietaryClaimStatusMap;
+}
+
+export function inferDietaryCategoriesFromMetadata(...parts: Array<string | null | undefined>): DietaryKey[] {
+  const text = parts
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (!text) return [];
+
+  const out = new Set<DietaryKey>();
+  const hasNonVeg = /\bnon[-\s]?veg\b/.test(text);
+  const hasVegan = /\bvegan\b|\bplant[-\s]?based\b/.test(text);
+  const hasJain = /\bjain\b|\bno onion\b|\bno garlic\b/.test(text);
+  const hasHalal = /\bhalal\b|\bzabiha\b/.test(text);
+  const hasVeg = /\bpure veg\b|\bvegetarian\b|\bveg(?:\b|[.-])/.test(text) && !hasNonVeg;
+
+  if (hasHalal) out.add("halal");
+  if (hasVegan) {
+    out.add("vegan");
+    out.add("veg");
   }
+  if (hasJain) {
+    out.add("jain");
+    out.add("veg");
+  }
+  if (hasVeg) out.add("veg");
+
+  return DIETARY_ORDER.filter((k) => out.has(k));
 }

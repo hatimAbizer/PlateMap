@@ -15,6 +15,7 @@ import { MiniMap } from "@/components/restaurant/MiniMap";
 import { RestaurantJsonLd } from "@/components/restaurant/RestaurantJsonLd";
 import type { RestaurantRow, ReviewRow, ProfileRow } from "@/types/database";
 import { formatRating } from "@/lib/utils";
+import { getDietaryStatus } from "@/lib/dietary";
 
 export async function generateMetadata({
   params,
@@ -160,7 +161,7 @@ export default async function RestaurantPage({
                       <DietaryBadge
                         key={c}
                         category={c}
-                        verified={restaurant.is_verified}
+                        status={getDietaryStatus(c, restaurant.dietary_claim_status, restaurant.is_verified)}
                         size="md"
                       />
                     ))}

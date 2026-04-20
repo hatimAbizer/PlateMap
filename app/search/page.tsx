@@ -6,6 +6,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { DietaryBadge } from "@/components/restaurant/DietaryBadge";
 import type { RestaurantRow, DietaryCategory } from "@/types/database";
 import { formatRating } from "@/lib/utils";
+import { getDietaryStatus } from "@/lib/dietary";
 
 export const metadata = { title: "Search" };
 
@@ -110,11 +111,16 @@ export default async function SearchPage({
                       <div className="aspect-[16/10] bg-surface" />
                     )}
                     <div className="p-4">
-                      <div className="flex flex-wrap gap-1.5 mb-2">
-                        {r.dietary_categories.map((c) => (
-                          <DietaryBadge key={c} category={c} size="sm" verified={r.is_verified} />
-                        ))}
-                      </div>
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {r.dietary_categories.map((c) => (
+                            <DietaryBadge
+                              key={c}
+                              category={c}
+                              size="sm"
+                              status={getDietaryStatus(c, r.dietary_claim_status, r.is_verified)}
+                            />
+                          ))}
+                        </div>
                       <h3 className="font-display text-base font-semibold text-text truncate">
                         {r.name}
                       </h3>

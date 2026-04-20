@@ -130,6 +130,26 @@ values
    array['https://images.unsplash.com/photo-1589302168068-964664d93dc0?w=1200'])
 on conflict (slug) do nothing;
 
+-- Initialize per-category dietary verification status from seed confidence.
+update public.restaurants r
+set dietary_claim_status = x.claims
+from (
+  select
+    t.id,
+    coalesce(
+      jsonb_object_agg(
+        c::text,
+        case when t.is_verified then 'verified' else 'unverified' end
+      ) filter (where c is not null),
+      '{}'::jsonb
+    ) as claims
+  from public.restaurants t
+  left join lateral unnest(t.dietary_categories) c on true
+  group by t.id, t.is_verified
+) x
+where r.id = x.id
+  and coalesce(r.dietary_claim_status, '{}'::jsonb) = '{}'::jsonb;
+
 -- Seed hours (Mon-Sun, 11:00-23:00) for every restaurant that doesn't have them
 update public.restaurants
 set hours = jsonb_build_object(
