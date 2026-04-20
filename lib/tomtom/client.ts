@@ -34,7 +34,7 @@ export async function tomtomSearch(
     limit: String(opts.limit ?? 20),
     countrySet: opts.countrySet ?? "IN",
     typeahead: "true",
-    language: "en-IN",
+    language: "en-GB",
   });
   if (opts.lat != null && opts.lng != null) {
     params.set("lat", String(opts.lat));
@@ -74,7 +74,7 @@ export async function tomtomCategorySearch(
     radius: String(opts.radius ?? 5000),
     limit: String(opts.limit ?? 100),
     countrySet: "IN",
-    language: "en-IN",
+    language: "en-GB",
   });
 
   const url = `${TOMTOM_BASE}/search/2/categorySearch/.json?${params.toString()}`;
