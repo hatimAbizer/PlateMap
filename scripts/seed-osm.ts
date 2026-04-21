@@ -36,6 +36,7 @@ const REQUIRE_DIETARY = /^(1|true)$/i.test(process.env.OSM_REQUIRE_DIETARY ?? "1
 const TILE_ROWS = intEnv("OSM_TILE_ROWS", 3);
 const TILE_COLS = intEnv("OSM_TILE_COLS", 3);
 const RETRIES = intEnv("OSM_RETRIES", 3);
+const MATCH_DISTANCE_METERS = numEnv("OSM_MATCH_DISTANCE_METERS", 200);
 const ENDPOINTS = (
   process.env.OSM_OVERPASS_URLS ??
   process.env.OSM_OVERPASS_URL ??
@@ -59,6 +60,41 @@ type TileBBox = {
   maxLat: number;
   minLng: number;
   maxLng: number;
+};
+
+type SeedPayload = {
+  slug: string;
+  name: string;
+  address: string;
+  city: string;
+  area: string | null;
+  lat: number;
+  lng: number;
+  phone: string | null;
+  website: string | null;
+  cuisine_type: string | null;
+  dietary_categories: DietaryKey[];
+  dietary_claim_status: Partial<Record<DietaryKey, "unverified" | "verified">>;
+  is_verified: boolean;
+  photos: string[];
+  osm_id?: string;
+};
+
+type ExistingRestaurantRow = {
+  id: string;
+  name: string;
+  address: string | null;
+  area: string | null;
+  lat: number;
+  lng: number;
+  phone: string | null;
+  website: string | null;
+  cuisine_type: string | null;
+  dietary_categories: DietaryKey[];
+  dietary_claim_status: Partial<Record<DietaryKey, "unverified" | "verified">> | null;
+  is_verified: boolean;
+  claimed_by: string | null;
+  osm_id: string | null;
 };
 
 async function main() {
@@ -97,7 +133,7 @@ async function main() {
   let skippedInvalid = 0;
   let skippedNoDietary = 0;
   const cap = LIMIT > 0 ? Math.min(elements.length, LIMIT) : elements.length;
-  const payloads: Record<string, unknown>[] = [];
+  const payloads: SeedPayload[] = [];
   const seenSlugs = new Set<string>();
 
   for (let i = 0; i < cap; i++) {
@@ -149,7 +185,7 @@ async function main() {
     const phone = (tags.phone ?? tags["contact:phone"] ?? "").trim() || null;
     const website = (tags.website ?? tags["contact:website"] ?? "").trim() || null;
 
-    const payload: Record<string, unknown> = {
+    const payload: SeedPayload = {
       slug,
       name,
       address: addressParts || "Bengaluru",
@@ -177,36 +213,81 @@ async function main() {
     return;
   }
 
-  console.log(`Upserting ${payloads.length} rows in batches...`);
+  console.log(`Merging ${payloads.length} OSM rows into restaurants...`);
+  let mergedByOsmId = 0;
+  let mergedByName = 0;
+  let mergedRows = 0;
+  let protectedRows = 0;
+  let mergeErrors = 0;
+  const inserts: SeedPayload[] = [];
+
+  for (const payload of payloads) {
+    let existing: ExistingRestaurantRow | null = null;
+
+    if (hasOsmId && payload.osm_id) {
+      existing = await findByOsmId(payload.osm_id);
+      if (existing) mergedByOsmId++;
+    }
+
+    if (!existing) {
+      existing = await findBestNearbyMatch(payload, MATCH_DISTANCE_METERS);
+      if (existing) mergedByName++;
+    }
+
+    if (!existing) {
+      inserts.push(payload);
+      continue;
+    }
+
+    if (existing.is_verified || existing.claimed_by) {
+      protectedRows++;
+      continue;
+    }
+
+    const updates = buildMergeUpdate(existing, payload, hasOsmId);
+    if (!updates) continue;
+
+    const { error } = await supabase.from("restaurants").update(updates).eq("id", existing.id);
+    if (error) {
+      mergeErrors++;
+      console.error(`Merge ${existing.id} ↯ ${error.message}`);
+      continue;
+    }
+    mergedRows++;
+  }
+
+  console.log(`Inserting ${inserts.length} new rows in batches...`);
   const BATCH = 500;
   let onConflict = hasOsmId ? "osm_id" : "slug";
-  let written = 0;
-  let errors = 0;
+  let inserted = 0;
+  let insertErrors = 0;
 
-  for (let i = 0; i < payloads.length; i += BATCH) {
-    const batch = payloads.slice(i, i + BATCH);
+  for (let i = 0; i < inserts.length; i += BATCH) {
+    const batch = inserts.slice(i, i + BATCH);
     let { error } = await supabase.from("restaurants").upsert(batch, { onConflict, ignoreDuplicates: true });
     if (
       error &&
       onConflict === "osm_id" &&
       /no unique or exclusion constraint matching the ON CONFLICT specification/i.test(error.message)
     ) {
-      console.warn("restaurants.osm_id has no unique constraint; falling back to slug conflict handling.");
+      console.warn(
+        "restaurants.osm_id has no unique constraint; apply supabase/migrations/0006_fix_source_id_uniques.sql. Falling back to slug conflict handling."
+      );
       onConflict = "slug";
       const retry = await supabase.from("restaurants").upsert(batch, { onConflict, ignoreDuplicates: true });
       error = retry.error;
     }
     if (error) {
-      errors++;
+      insertErrors++;
       console.error(`Batch ${i}-${i + batch.length} ↯ ${error.message}`);
       continue;
     }
-    written += batch.length;
-    console.log(`... ${written}/${payloads.length}`);
+    inserted += batch.length;
+    console.log(`... ${inserted}/${inserts.length}`);
   }
 
   console.log(
-    `Done. Upserted ${written}, batch errors ${errors}, invalid ${skippedInvalid}, no-dietary ${skippedNoDietary}.`
+    `Done. Merged ${mergedRows} (osm-id ${mergedByOsmId}, name+distance ${mergedByName}), inserted ${inserted}, protected ${protectedRows}, merge errors ${mergeErrors}, insert errors ${insertErrors}, invalid ${skippedInvalid}, no-dietary ${skippedNoDietary}.`
   );
 }
 
@@ -315,6 +396,179 @@ function truncate(input: string, max = 240): string {
   return `${input.slice(0, max)}...`;
 }
 
+async function findByOsmId(osmId: string): Promise<ExistingRestaurantRow | null> {
+  const { data, error } = await supabase
+    .from("restaurants")
+    .select(
+      "id,name,address,area,lat,lng,phone,website,cuisine_type,dietary_categories,dietary_claim_status,is_verified,claimed_by,osm_id"
+    )
+    .eq("osm_id", osmId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as ExistingRestaurantRow;
+}
+
+async function findBestNearbyMatch(
+  payload: SeedPayload,
+  maxDistanceMeters: number
+): Promise<ExistingRestaurantRow | null> {
+  const delta = latLngDelta(payload.lat, maxDistanceMeters);
+  const { data, error } = await supabase
+    .from("restaurants")
+    .select(
+      "id,name,address,area,lat,lng,phone,website,cuisine_type,dietary_categories,dietary_claim_status,is_verified,claimed_by,osm_id"
+    )
+    .gte("lat", payload.lat - delta.lat)
+    .lte("lat", payload.lat + delta.lat)
+    .gte("lng", payload.lng - delta.lng)
+    .lte("lng", payload.lng + delta.lng)
+    .limit(60);
+
+  if (error || !data || data.length === 0) return null;
+
+  const sourceName = normalizePlaceName(payload.name);
+  let best: ExistingRestaurantRow | null = null;
+  let bestScore = 0;
+
+  for (const row of data as ExistingRestaurantRow[]) {
+    const distance = haversineMeters(payload.lat, payload.lng, row.lat, row.lng);
+    if (distance > maxDistanceMeters) continue;
+    const nameScore = nameSimilarity(sourceName, normalizePlaceName(row.name));
+    if (nameScore < 0.72) continue;
+    const distanceScore = 1 - distance / maxDistanceMeters;
+    const score = nameScore * 0.85 + distanceScore * 0.15;
+    if (score > bestScore) {
+      best = row;
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
+function buildMergeUpdate(
+  existing: ExistingRestaurantRow,
+  incoming: SeedPayload,
+  hasOsmId: boolean
+): Record<string, unknown> | null {
+  const mergedDietary = mergeDietaryCategories(existing.dietary_categories, incoming.dietary_categories);
+  const mergedStatus = mergeDietaryStatus(existing.dietary_claim_status, mergedDietary);
+  const updates: Record<string, unknown> = {};
+
+  if (JSON.stringify(existing.dietary_categories) !== JSON.stringify(mergedDietary)) {
+    updates.dietary_categories = mergedDietary;
+  }
+  if (JSON.stringify(existing.dietary_claim_status ?? {}) !== JSON.stringify(mergedStatus)) {
+    updates.dietary_claim_status = mergedStatus;
+  }
+  if (hasOsmId && incoming.osm_id && !existing.osm_id) {
+    updates.osm_id = incoming.osm_id;
+  }
+  if (!existing.phone && incoming.phone) {
+    updates.phone = incoming.phone;
+  }
+  if (!existing.website && incoming.website) {
+    updates.website = incoming.website;
+  }
+  if (!existing.cuisine_type && incoming.cuisine_type) {
+    updates.cuisine_type = incoming.cuisine_type;
+  }
+  if (!existing.area && incoming.area) {
+    updates.area = incoming.area;
+  }
+  if ((!existing.address || existing.address === "Bengaluru") && incoming.address !== "Bengaluru") {
+    updates.address = incoming.address;
+  }
+
+  return Object.keys(updates).length > 0 ? updates : null;
+}
+
+function mergeDietaryCategories(existing: DietaryKey[] | null | undefined, incoming: DietaryKey[]): DietaryKey[] {
+  const out = new Set<DietaryKey>();
+  (existing ?? []).forEach((key) => out.add(key));
+  incoming.forEach((key) => out.add(key));
+  return DIETARY_ORDER.filter((key) => out.has(key));
+}
+
+function mergeDietaryStatus(
+  existing: Partial<Record<DietaryKey, "unverified" | "verified">> | null | undefined,
+  mergedDietary: DietaryKey[]
+): Partial<Record<DietaryKey, "unverified" | "verified">> {
+  const status = { ...(existing ?? {}) };
+  for (const key of mergedDietary) {
+    if (status[key] !== "verified" && status[key] !== "unverified") {
+      status[key] = "unverified";
+    }
+  }
+  return status;
+}
+
+function normalizePlaceName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function nameSimilarity(left: string, right: string): number {
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  if (left.includes(right) || right.includes(left)) return 0.93;
+  const leftTokens = new Set(tokenizeName(left));
+  const rightTokens = new Set(tokenizeName(right));
+  if (leftTokens.size === 0 || rightTokens.size === 0) return 0;
+  let overlap = 0;
+  for (const token of leftTokens) {
+    if (rightTokens.has(token)) overlap++;
+  }
+  const union = leftTokens.size + rightTokens.size - overlap;
+  return union > 0 ? overlap / union : 0;
+}
+
+function tokenizeName(name: string): string[] {
+  const stopwords = new Set([
+    "restaurant",
+    "resto",
+    "cafe",
+    "cafeteria",
+    "hotel",
+    "kitchen",
+    "bar",
+    "grill",
+    "foods",
+    "food",
+    "the",
+    "and",
+    "co",
+    "llp",
+    "pvt",
+    "ltd",
+  ]);
+
+  return name
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2 && !stopwords.has(token));
+}
+
+function latLngDelta(lat: number, meters: number): { lat: number; lng: number } {
+  const latDelta = meters / 111_000;
+  const cosLat = Math.cos((lat * Math.PI) / 180);
+  const lngDelta = meters / (111_000 * Math.max(0.1, cosLat));
+  return { lat: latDelta, lng: lngDelta };
+}
+
+function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (n: number) => (n * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function classifyDietary(tags: Record<string, string>, name: string): DietaryKey[] {
   const out = new Set<DietaryKey>();
 
@@ -337,7 +591,6 @@ function classifyDietary(tags: Record<string, string>, name: string): DietaryKey
   // If it's only vegan/jain, veg is also implied (already added above)
 
   const cuisine = (tags.cuisine ?? "").toLowerCase();
-  const lowerName = name.toLowerCase();
 
   // Keyword fallback from name + cuisine
   if (out.size === 0) {

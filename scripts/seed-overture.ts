@@ -33,6 +33,7 @@ const BBOX = {
 const LIMIT = readNumberEnv("OVERTURE_LIMIT", 5000);
 const MIN_CONFIDENCE = readNumberEnv("OVERTURE_MIN_CONFIDENCE", 0.0);
 const DRY_RUN = /^(1|true)$/i.test(process.env.OVERTURE_DRY_RUN ?? "");
+const REQUIRE_DIETARY = /^(1|true)$/i.test(process.env.OVERTURE_REQUIRE_DIETARY ?? "0");
 
 type OvertureRow = {
   id: string;
@@ -105,11 +106,29 @@ async function main() {
 
   console.log(`Fetched ${rows.length} Overture places in bbox.`);
 
-  let inserted = 0;
-  let updated = 0;
-  let duplicates = 0;
+  const payloads: Array<{
+    overtureId: string;
+    payload: {
+      slug: string;
+      name: string;
+      address: string;
+      city: string;
+      area: string | null;
+      lat: number;
+      lng: number;
+      phone: string | null;
+      website: string | null;
+      cuisine_type: string | null;
+      dietary_categories: DietaryKey[];
+      dietary_claim_status: ReturnType<typeof buildDietaryClaimStatus>;
+      is_verified: boolean;
+      photos: string[];
+      overture_id: string;
+    };
+  }> = [];
   let skippedInvalid = 0;
-  let wouldInsert = 0;
+  let skippedNoDietary = 0;
+  let wouldUpsert = 0;
 
   for (const row of rows) {
     const name = safeText(row.name);
@@ -139,6 +158,10 @@ async function main() {
       address,
       website
     );
+    if (REQUIRE_DIETARY && dietary.length === 0) {
+      skippedNoDietary++;
+      continue;
+    }
 
     const slugBase = slugify(name) || "restaurant";
     const slug = `${slugBase}-${overtureId.slice(-6)}`.slice(0, 120);
@@ -164,64 +187,67 @@ async function main() {
       overture_id: overtureId,
     };
 
-    if (DRY_RUN) {
-      wouldInsert++;
-      continue;
-    }
-
-    const { data: existing } = await supabase
-      .from("restaurants")
-      .select("id,is_verified,claimed_by")
-      .eq("overture_id", overtureId)
-      .maybeSingle();
-
-    if (existing) {
-      if (existing.is_verified || existing.claimed_by) {
-        duplicates++;
-        continue;
-      }
-      const { error } = await supabase
-        .from("restaurants")
-        .update({
-          name: payload.name,
-          address: payload.address,
-          area: payload.area,
-          lat: payload.lat,
-          lng: payload.lng,
-          phone: payload.phone,
-          website: payload.website,
-          cuisine_type: payload.cuisine_type,
-          dietary_categories: payload.dietary_categories,
-          dietary_claim_status: payload.dietary_claim_status,
-        })
-        .eq("id", existing.id);
-      if (error) {
-        console.error(`${name} (${overtureId}) ↯ ${error.message}`);
-        continue;
-      }
-      updated++;
-      continue;
-    }
-
-    const { error } = await supabase.from("restaurants").insert(payload);
-
-    if (error) {
-      if (error.code === "23505") duplicates++;
-      else console.error(`${name} (${overtureId}) ↯ ${error.message}`);
-      continue;
-    }
-    inserted++;
+    payloads.push({ overtureId, payload });
+    wouldUpsert++;
   }
 
   if (DRY_RUN) {
     console.log(
-      `Dry run complete. Would insert ${wouldInsert}, invalid ${skippedInvalid}.`
+      `Dry run complete. Would upsert ${wouldUpsert}, invalid ${skippedInvalid}, no-dietary ${skippedNoDietary}.`
     );
     return;
   }
 
+  const existingByOvertureId = await fetchExistingByOvertureId(payloads.map((item) => item.overtureId));
+  const upserts: Array<(typeof payloads)[number]["payload"]> = [];
+  let plannedInsert = 0;
+  let plannedUpdate = 0;
+  let protectedRows = 0;
+
+  for (const item of payloads) {
+    const existing = existingByOvertureId.get(item.overtureId);
+    if (existing) {
+      if (existing.is_verified || existing.claimed_by) {
+        protectedRows++;
+        continue;
+      }
+      plannedUpdate++;
+    } else {
+      plannedInsert++;
+    }
+    upserts.push(item.payload);
+  }
+
+  let written = 0;
+  let errors = 0;
+  const BATCH = 500;
+  let onConflict = "overture_id";
+  for (let i = 0; i < upserts.length; i += BATCH) {
+    const batch = upserts.slice(i, i + BATCH);
+    let { error } = await supabase.from("restaurants").upsert(batch, { onConflict });
+    if (
+      error &&
+      onConflict === "overture_id" &&
+      /no unique or exclusion constraint matching the ON CONFLICT specification/i.test(error.message)
+    ) {
+      console.warn(
+        "restaurants.overture_id has no unique constraint; apply supabase/migrations/0006_fix_source_id_uniques.sql. Falling back to slug conflict handling."
+      );
+      onConflict = "slug";
+      const retry = await supabase.from("restaurants").upsert(batch, { onConflict });
+      error = retry.error;
+    }
+    if (error) {
+      errors++;
+      console.error(`Batch ${i}-${i + batch.length} ↯ ${error.message}`);
+      continue;
+    }
+    written += batch.length;
+    console.log(`... ${written}/${upserts.length}`);
+  }
+
   console.log(
-    `Done. Inserted ${inserted}, updated ${updated}, skipped ${duplicates}, invalid ${skippedInvalid}.`
+    `Done. Upserted ${written}, planned inserts ${plannedInsert}, planned updates ${plannedUpdate}, protected ${protectedRows}, errors ${errors}, invalid ${skippedInvalid}, no-dietary ${skippedNoDietary}.`
   );
 }
 
@@ -246,7 +272,7 @@ function classifyDietaryFromMetadata(...parts: Array<string | null | undefined>)
     return ["veg"];
   }
 
-  return ["veg"];
+  return [];
 }
 
 function deriveArea(address: string, locality: string): string | null {
@@ -307,6 +333,31 @@ async function resolveOvertureRelease(): Promise<string> {
   }
 
   return "2026-04-15.0";
+}
+
+async function fetchExistingByOvertureId(
+  overtureIds: string[]
+): Promise<Map<string, { id: string; is_verified: boolean; claimed_by: string | null }>> {
+  const map = new Map<string, { id: string; is_verified: boolean; claimed_by: string | null }>();
+  const BATCH = 500;
+  for (let i = 0; i < overtureIds.length; i += BATCH) {
+    const chunk = overtureIds.slice(i, i + BATCH);
+    const { data, error } = await supabase
+      .from("restaurants")
+      .select("id,overture_id,is_verified,claimed_by")
+      .in("overture_id", chunk);
+    if (error || !data) continue;
+    for (const row of data as Array<{ id: string; overture_id: string; is_verified: boolean; claimed_by: string | null }>) {
+      if (row.overture_id) {
+        map.set(row.overture_id, {
+          id: row.id,
+          is_verified: row.is_verified,
+          claimed_by: row.claimed_by,
+        });
+      }
+    }
+  }
+  return map;
 }
 
 main().catch((e) => {
