@@ -6,7 +6,12 @@
       "Bash(npm install *)",
       "Bash(npx tsc *)",
       "Bash(npx next *)",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "Bash(OVERTURE_DRY_RUN=1 OVERTURE_LIMIT=50 npm run seed:overture)",
+      "Bash(curl -s --max-time 30 https://stac.overturemaps.org/catalog.json)",
+      "Bash(tasklist)",
+      "Bash(OSM_DRY_RUN=1 npm run seed:osm)",
+      "Bash(npm run *)"
     ]
   }
 }

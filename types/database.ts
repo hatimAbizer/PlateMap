@@ -27,6 +27,7 @@ export interface RestaurantRow {
   review_count: number;
   overture_id: string | null;
   tomtom_id: string | null;
+  osm_id: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "seed": "npm run seed:overture",
+    "seed": "npm run seed:osm",
+    "seed:osm": "tsx scripts/seed-osm.ts",
     "seed:overture": "tsx scripts/seed-overture.ts",
     "seed:tomtom": "tsx scripts/seed-tomtom.ts"
   },

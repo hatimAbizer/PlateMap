@@ -56,7 +56,19 @@ async function main() {
   console.log(`Using Overture release ${release}`);
 
   const conn = await duckdb.DuckDBConnection.create();
-  await conn.run("INSTALL httpfs; INSTALL spatial; LOAD httpfs; LOAD spatial; SET s3_region='us-west-2';");
+  await conn.run(
+    [
+      "INSTALL httpfs",
+      "INSTALL spatial",
+      "LOAD httpfs",
+      "LOAD spatial",
+      "SET s3_region='us-west-2'",
+      "SET http_timeout=120000",
+      "SET http_retries=5",
+      "SET http_retry_wait_ms=1000",
+      "SET http_keep_alive=true",
+    ].join("; ") + ";"
+  );
 
   const sql = `
     SELECT
