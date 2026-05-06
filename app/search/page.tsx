@@ -7,6 +7,7 @@ import { DietaryBadge } from "@/components/restaurant/DietaryBadge";
 import type { RestaurantRow, DietaryCategory } from "@/types/database";
 import { formatRating } from "@/lib/utils";
 import { getDietaryStatus } from "@/lib/dietary";
+import { AdSlot as AdsenseSlot } from "@/components/layout/AdSlot";
 
 export const metadata = { title: "Search" };
 
@@ -94,7 +95,7 @@ export default async function SearchPage({
             <ul className="grid sm:grid-cols-2 gap-4">
               {list.map((r, idx) => (
                 <li key={r.id}>
-                  {idx === 5 && <AdSlot />}
+                  {idx === 5 && <SponsoredAdSlot />}
                   <Link
                     href={`/restaurant/${r.slug}`}
                     className="block border border-border rounded-md overflow-hidden hover:border-muted transition-colors group"
@@ -145,20 +146,12 @@ export default async function SearchPage({
   );
 }
 
-function AdSlot() {
-  const client = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
-  if (!client) return null;
+function SponsoredAdSlot() {
+  const slot = process.env.NEXT_PUBLIC_ADSENSE_SLOT_SEARCH ?? process.env.NEXT_PUBLIC_ADSENSE_SLOT_ID ?? "auto";
   return (
     <div className="sm:col-span-2 border border-border rounded-md p-4 text-center mb-4">
       <div className="label-xs mb-2">Sponsored</div>
-      <ins
-        className="adsbygoogle block"
-        style={{ display: "block", minHeight: 90 }}
-        data-ad-client={client}
-        data-ad-slot="auto"
-        data-ad-format="auto"
-        data-full-width-responsive="true"
-      />
+      <AdsenseSlot slot={slot} />
     </div>
   );
 }

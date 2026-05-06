@@ -64,7 +64,7 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=
 GOOGLE_PLACES_API_KEY=
 NEXT_PUBLIC_ADSENSE_CLIENT_ID=
 ```
-Never hardcode. Never log. Never commit.
+Never hardcode. Never commit.
 
 ---
 
@@ -82,9 +82,6 @@ Never hardcode. Never log. Never commit.
 | `--veg` | `#388E3C` | Vegetarian markers + badges |
 | `--vegan` | `#7B1FA2` | Vegan markers + badges |
 | `--jain` | `#9E9E9E` | Jain markers + badges |
-
-Map tiles: dark basemap only (CartoDB Dark Matter or Google Maps night style).
-Markers: colored circles on black/white map — nothing else.
 
 ### Typography
 ```css

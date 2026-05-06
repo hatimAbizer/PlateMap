@@ -13,6 +13,7 @@ import { ReviewCard, type ReviewWithAuthor } from "@/components/restaurant/Revie
 import { ReviewForm } from "@/components/restaurant/ReviewForm";
 import { MiniMap } from "@/components/restaurant/MiniMap";
 import { RestaurantJsonLd } from "@/components/restaurant/RestaurantJsonLd";
+import { AdSlot as AdsenseSlot } from "@/components/layout/AdSlot";
 import type { RestaurantRow, ReviewRow, ProfileRow } from "@/types/database";
 import { formatRating } from "@/lib/utils";
 import { getDietaryStatus } from "@/lib/dietary";
@@ -430,19 +431,11 @@ function HoursBlock({
 }
 
 function AdSlot() {
-  const client = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID;
-  if (!client) return null;
+  const slot = process.env.NEXT_PUBLIC_ADSENSE_SLOT_RESTAURANT ?? process.env.NEXT_PUBLIC_ADSENSE_SLOT_ID ?? "auto";
   return (
     <div className="border border-border rounded-md p-4 text-center">
       <div className="label-xs mb-2">Sponsored</div>
-      <ins
-        className="adsbygoogle block"
-        style={{ display: "block", minHeight: 90 }}
-        data-ad-client={client}
-        data-ad-slot="auto"
-        data-ad-format="auto"
-        data-full-width-responsive="true"
-      />
+      <AdsenseSlot slot={slot} />
     </div>
   );
 }

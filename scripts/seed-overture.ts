@@ -231,7 +231,7 @@ async function main() {
       /no unique or exclusion constraint matching the ON CONFLICT specification/i.test(error.message)
     ) {
       console.warn(
-        "restaurants.overture_id has no unique constraint; apply supabase/migrations/0006_fix_source_id_uniques.sql. Falling back to slug conflict handling."
+        "restaurants.overture_id cannot be used for ON CONFLICT; apply supabase/migrations/0007_enforce_source_id_conflicts.sql. Falling back to slug conflict handling."
       );
       onConflict = "slug";
       const retry = await supabase.from("restaurants").upsert(batch, { onConflict });
